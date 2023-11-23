@@ -8,6 +8,7 @@ from datetime import datetime
 
 import pickle
 import os
+from pathlib import Path
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -29,6 +30,7 @@ def save_to_pickle(obj, file_path='data/users.pickle'):
     - obj: The object to be saved.
     - file_path: The path to the pickle file. Default is 'data/users.pickle'.
     """
+    Path(file_path).mkdir(exist_ok=True, parents=True)
     with open(file_path, 'wb') as file:
         pickle.dump(obj, file)
 
