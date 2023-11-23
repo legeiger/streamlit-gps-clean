@@ -1,3 +1,6 @@
-altair
+#altair
 pandas
 streamlit
+# streamlit_oauth
+stravalib
+# flask

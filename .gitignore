@@ -1,0 +1,3 @@
+# exclude custom secrets from deployment
+*secrets.toml
+data/users.pickle
