@@ -70,7 +70,7 @@ num_activities = st.slider("Number of activities to fetch", min_value=5, max_val
 
 MY_STRAVA_CLIENT_ID = st.secrets.strava.CLIENT_ID
 MY_STRAVA_CLIENT_SECRET =  st.secrets.strava.CLIENT_SECRET
-if st.secrets.strava.REDIRECT_URI_DEV:
+if hasattr(st.secrets, "strava.REDIRECT_URI_DEV"):
     REDIRECT_URI = st.secrets.strava.REDIRECT_URI_DEV
 else:
     REDIRECT_URI = st.secrets.strava.REDIRECT_URI
