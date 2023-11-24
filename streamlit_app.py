@@ -63,23 +63,24 @@ def convert_utc_to_string(utc_seconds):
     return formatted_time
 
 
+min_speed = st.slider("Minmum speed in kph", min_value=0, max_value=15, value=3, step=1, format='%i km/h')
+num_activities = st.slider("Number of activities to fetch", min_value=5, max_value=100, value=10, step=5) 
 
-
-min_speed = st.slider("Minmum speed in kph", 0, 15, 1)
-num_activities = st.slider("Number of turns in spiral", 1, 10, 1)
-
-
-st.write(f"Strava client ID is {st.secrets.strava.CLIENT_ID}")
+# st.write(f"Strava client ID is {st.secrets.strava.CLIENT_ID}")
 
 MY_STRAVA_CLIENT_ID = st.secrets.strava.CLIENT_ID
 MY_STRAVA_CLIENT_SECRET =  st.secrets.strava.CLIENT_SECRET
-REDIRECT_URI = st.secrets.strava.REDIRECT_URI
+if st.secrets.strava.REDIRECT_URI_DEV:
+    REDIRECT_URI = st.secrets.strava.REDIRECT_URI_DEV
+else:
+    REDIRECT_URI = st.secrets.strava.REDIRECT_URI
+
 SCOPE =   ast.literal_eval(st.secrets.strava.SCOPE)
 
-MY_STRAVA_CLIENT_ID
-MY_STRAVA_CLIENT_SECRET
+# MY_STRAVA_CLIENT_ID
+# MY_STRAVA_CLIENT_SECRET
 REDIRECT_URI
-SCOPE
+# SCOPE
 
 
 # load from pickle
@@ -87,7 +88,10 @@ client = load_from_pickle() if load_from_pickle() != None else Client()
 if client == None:
     st.info('Login neassary. Please click auth strava button')
 elif hasattr(client, "token_expires_at"):
-    st.success(f'Using already available login from pickle. expires at {convert_utc_to_string(client.token_expires_at)}')
+    if time.time() < client.token_expires_at:
+        st.success(f'Using already available login from pickle. expires at {convert_utc_to_string(client.token_expires_at)}')
+    else:
+        st.warning(f'Already available login expired at {convert_utc_to_string(client.token_expires_at)}. Please auth again')
 
 
 url = client.authorization_url(client_id=MY_STRAVA_CLIENT_ID, redirect_uri=REDIRECT_URI, scope=SCOPE)
@@ -122,19 +126,21 @@ if auth_code and not hasattr(client, "token_expires_at"):
 if hasattr(client, "token_expires_at"):
     if time.time() > client.token_expires_at:
         refresh_response = client.refresh_access_token(
-            client_id=1234, client_secret="asdf1234", refresh_token=client.refresh_token
+            client_id=MY_STRAVA_CLIENT_ID, client_secret=MY_STRAVA_CLIENT_SECRET, refresh_token=client.refresh_token
         )
         access_token = refresh_response["access_token"]
         refresh_token = refresh_response["refresh_token"]
         expires_at = refresh_response["expires_at"]
 
-    else:
-        
+        save_to_pickle(client)
+
+    else:        
         athlete = client.get_athlete()
         st.text("Athlete's name is {} {}, based in {}, {}"
             .format(athlete.firstname, athlete.lastname, athlete.city, athlete.country))
         
-        activities = client.get_activities(limit=10)
+        
+        activities = client.get_activities(limit=num_activities)
 
         # print(activities)
         # data = []
@@ -214,25 +220,39 @@ if hasattr(client, "token_expires_at"):
             "cadence"
         ]
 
-        # TODO high?
-        streams = client.get_activity_streams(option, types=types, resolution="high")
+        resolutions = ['low', 'medium', 'high']
+        res = st.selectbox('Select resolution', resolutions)
 
+        # https://developers.strava.com/docs/reference/#api-Streams-getActivityStreams
+        streams = client.get_activity_streams(option, types=types, resolution=res)
+
+ 
         #  Result is a dictionary object.  The dict's key are the stream type.
         for stream_type in streams.keys():
                 st.markdown(f'## {stream_type}')
                 st.markdown(f'containing {len(streams[stream_type].data)} datapoints')
-                # if stream_type == 'velocity_smooth':
-                #     st.line_chart(streams[stream_type].data * 3.6)
-                st.line_chart(streams[stream_type].data)
-                if stream_type != 'latlng':
-                    st.line_chart(streams[stream_type].data)
+                if stream_type == 'latlng':             
+                        #print(streams[stream_type].data)
+                        df = pd.DataFrame(streams[stream_type].data, columns=["lat", "lon"])
+                        'scatter plot'
+                        # TODO fix so it zooms in at the correct point
+                        st.scatter_chart(df, y='lat', x='lon', )
+                        ' map'
+                        st.map(df, size=1)
+                elif stream_type == 'velocity_smooth':
+                    df = pd.DataFrame(streams[stream_type].data, columns=["velocity_smooth"])
+                    # convert from m/s to kph
+                    df["velocity_smooth"] = 3.6 * df["velocity_smooth"]
+                    f'count of speeds below or equal {min_speed} kph is {len(df[(df["velocity_smooth"] <= min_speed)])}'
+                    st.line_chart(df)
                 else:
-                    #print(streams[stream_type].data)
-                    df = pd.DataFrame(streams[stream_type].data, columns=["lat", "lon"])
-                    'scatter plot'
-                    st.scatter_chart(df, x='lat', y='lon')
-                    ' map'
-                    st.map(df, size=1)
+                    st.line_chart(streams[stream_type].data)
+
+            #% TODO calc avg speed
+            # TODO calc avg without "slow" datapoints
+            # TODO generate new actviy and upload
+            # DELETE old one probably needed?
+                     
        
         # https://github.com/randyzwitch/streamlit-folium
 
